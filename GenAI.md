@@ -52,7 +52,7 @@ This gives **practicality, consistency, and easy migration** across approaches.
 
 ---
 
-### B) Three Approaches Compared
+### B) Three Approaches (Detailed Analysis)
 
 ## 1) Online/Cloud-Based
 
@@ -94,23 +94,19 @@ flowchart LR
 6. Asset worker generates clips/screenshots from validated timestamps and stores deterministic file names.
 7. Review queue captures only flagged highlights for human correction; rerun is partial (per-highlight), not full-video.
 
-**Pros**
+**Pros and Cons**
 
-- Fastest production-grade MVP with minimal infra ownership.
-- Strong multilingual ASR and diarization quality out of the box.
-- Built-in scalability and managed reliability.
-
-**Cons**
-
-- Highest variable cost at scale (storage + ASR + LLM + egress).
-- Strongest data-governance constraints (video/transcript exits local perimeter).
-- Tight coupling to provider APIs and quota behavior.
+| Pros                                                            | Cons                                                                            |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Fastest production-grade MVP with minimal infra ownership.      | Highest variable cost at scale (storage + ASR + LLM + egress).                  |
+| Strong multilingual ASR and diarization quality out of the box. | Strongest data-governance constraints (video/transcript exits local perimeter). |
+| Built-in scalability and managed reliability.                   | Tight coupling to provider APIs and quota behavior.                             |
 
 **Best fit**: Rapid pilot where time-to-market matters most.
 
 ---
 
-## 2) Hybrid: Local Media Processing + Cloud LLM APIs (**Recommended**)
+## 2) Hybrid: Local Media Processing + Cloud LLM APIs
 
 **Stack options**
 
@@ -146,16 +142,12 @@ flowchart LR
 6. Persist intermediate artifacts so retries start from the failed stage, not from ingest.
 7. Add confidence thresholds by highlight/evidence density to drive review queue intelligently.
 
-**Pros**
+**Pros and Cons**
 
-- Best balance of quality, privacy, and delivery speed.
-- No raw-video cloud transfer; lower compliance risk vs full cloud.
-- Strong operational control over deterministic media outputs.
-
-**Cons**
-
-- Requires disciplined local orchestration and retry design.
-- External LLM availability and token pricing still affect SLO/cost.
+| Pros                                                              | Cons                                                               |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Best balance of quality, privacy, and delivery speed.             | Requires disciplined local orchestration and retry design.         |
+| No raw-video cloud transfer; lower compliance risk vs full cloud. | External LLM availability and token pricing still affect SLO/cost. |
 
 **Best fit**: Production-ready default for most teams.
 
@@ -196,32 +188,43 @@ flowchart LR
 6. Track model/prompt versions in output metadata to preserve reproducibility for audits.
 7. Keep human review loop identical to other approaches so migration between stacks stays low risk.
 
-**Pros**
+**Pros and Cons**
 
-- Maximum privacy and full control over data/model lifecycle.
-- No third-party API outage dependency.
-- Predictable unit economics after infra amortization.
-
-**Cons**
-
-- Highest MLOps complexity (model upgrades, quantization, serving, monitoring).
-- Requires GPU capacity planning and strong observability.
-- Quality/latency vary significantly by model/hardware profile.
+| Pros                                                        | Cons                                                                          |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Maximum privacy and full control over data/model lifecycle. | Highest MLOps complexity (model upgrades, quantization, serving, monitoring). |
+| No third-party API outage dependency.                       | Requires GPU capacity planning and strong observability.                      |
+| Predictable unit economics after infra amortization.        | Quality/latency vary significantly by model/hardware profile.                 |
 
 **Best fit**: Compliance-sensitive or data-residency-heavy environments.
 
+### C) Final Comparison Table (Across 3 Approaches)
+
+**Sample constraints from the question (and how each approach fits):**
+
+| Constraint                                                             | Online/Cloud-Based                                                             | Hybrid (Local media + Cloud LLM)                                           | Fully Offline (Open-source local)                                           |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Local folder of long videos (3–4 hours, 200MB+)                        | Handles scale well, but needs upload of each large file to cloud storage.      | Keeps heavy media processing local; only transcript chunks go to cloud.    | Entire pipeline stays local; best fit for large local files without upload. |
+| Output package per video: `Summary.md` + highlight clips + screenshots | Easy to orchestrate in cloud workers; strong scalability for asset generation. | Deterministic local FFmpeg rendering gives stable clip/screenshot quality. | Fully local rendering works, but depends on local compute throughput.       |
+| Keep videos organized per video/job                                    | Strong with managed object storage and workflow IDs.                           | Strong with local job store + deterministic folder naming.                 | Strong with local orchestrator and versioned local output store.            |
+| Practical delivery with clear tradeoffs (no-code proposal context)     | Fastest MVP and easiest to explain operationally.                              | Best balance of practicality, privacy, and quality (recommended).          | Most control, but highest implementation/ops complexity.                    |
+| Data sensitivity from local video source                               | Lowest privacy fit (raw media/transcripts leave local boundary).               | Better privacy fit (raw video stays local).                                | Highest privacy fit (no external API dependency).                           |
+
 ---
 
-### C) Robust JSON Schema Design (Contract First)
+### D) Robust JSON Schema Design (Contract First)
 
 Use one canonical `summary.json` schema for all approaches.
 
 **Canonical schema (`summary.schema.json`)**
 
+<details>
+<summary>Expand <code>summary.schema.json</code></summary>
+
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.local/schemas/video-summary.schema.json",
+  "$id": "https://example.local/schemas/summary.schema.json",
   "title": "Video Summary Package",
   "type": "object",
   "additionalProperties": false,
@@ -417,6 +420,8 @@ Use one canonical `summary.json` schema for all approaches.
 }
 ```
 
+</details>
+
 **Minimal valid `summary.json` example**
 
 ```json
@@ -506,7 +511,7 @@ This contract-first design minimizes hallucination and keeps the pipeline determ
 
 ---
 
-### D) Prompt Quality (Zero-Shot, Reliable, Low Hallucination)
+### E) Prompt Quality (Zero-Shot, Reliable, Low Hallucination)
 
 Use strict, single-call zero-shot prompting with explicit constraints.
 
@@ -533,7 +538,7 @@ Use strict, single-call zero-shot prompting with explicit constraints.
 
 ---
 
-### E) Ambiguity Handling + User Review Flow
+### F) Ambiguity Handling + User Review Flow
 
 Trigger review when:
 
@@ -556,7 +561,7 @@ This keeps human effort focused and reduces full reruns.
 
 ---
 
-### F) Bulk Generation Thinking (Errors, Naming, Reports)
+### G) Bulk Generation Thinking (Errors, Naming, Reports)
 
 **Batch model**
 
@@ -601,7 +606,7 @@ Design a **single zero-shot prompt** that takes a user’s persona configuration
 
 ## Single Zero-Shot Prompt (One Call, 3 Drafts, Structured Output)
 
-For this use case, the goal is simple: one API call should return three usable drafts that feel like the same person wrote them, while still being clearly different in style. Also treating safety and reviewability as first-class requirements, not optional extras.
+For this problem, the goal is simple: one API call should return three usable drafts that feel like the same person wrote them, while still being clearly different in style. Also treating safety and reviewability as first-class requirements, not optional extras.
 
 Use this prompt at runtime (replace placeholders in `INPUT_JSON`):
 
@@ -888,6 +893,9 @@ Use two contracts: **template schema** and **generation job schema**.
 
 ## 1) `template_schema.json`
 
+<details>
+<summary>Expand <code>template_schema.json</code></summary>
+
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1026,6 +1034,8 @@ Use two contracts: **template schema** and **generation job schema**.
 }
 ```
 
+</details>
+
 **Minimal valid `template_schema.json` example**
 
 ```json
@@ -1066,6 +1076,9 @@ Use two contracts: **template schema** and **generation job schema**.
 ```
 
 ## 2) `generation_job.schema.json`
+
+<details>
+<summary>Expand <code>generation_job.schema.json</code></summary>
 
 ```json
 {
@@ -1183,6 +1196,8 @@ Use two contracts: **template schema** and **generation job schema**.
   }
 }
 ```
+
+</details>
 
 **Minimal valid `generation_job.json` example**
 
@@ -1398,6 +1413,9 @@ flowchart LR
 
 ## 1) `series_bible.schema.json`
 
+<details>
+<summary>Expand <code>series_bible.schema.json</code></summary>
+
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1513,6 +1531,8 @@ flowchart LR
 }
 ```
 
+</details>
+
 **Minimal valid `series_bible.json` example**
 
 ```json
@@ -1535,15 +1555,26 @@ flowchart LR
       "personality_rules": ["curious", "empathetic", "quick humor"],
       "speech_style": "short energetic lines with friendly tone",
       "voice_profile": "female_young_indian_warm"
+    },
+    {
+      "character_id": "char_kabir",
+      "name": "Kabir",
+      "visual_profile": {
+        "reference_images": ["refs/kabir_front.png"],
+        "consistency_notes": ["Usually wears black jacket and backpack"]
+      },
+      "personality_rules": ["calm", "practical", "supportive"],
+      "speech_style": "clear grounded lines with dry humor",
+      "voice_profile": "male_young_indian_neutral"
     }
   ],
   "relationships": [
     {
       "from_character_id": "char_riya",
-      "to_character_id": "char_riya",
-      "relation": "other",
+      "to_character_id": "char_kabir",
+      "relation": "friend",
       "behavior_constraints": [
-        "maintain consistent personality across episodes"
+        "support each other under pressure without breaking character tone"
       ]
     }
   ]
@@ -1551,6 +1582,9 @@ flowchart LR
 ```
 
 ## 2) `episode_package.schema.json`
+
+<details>
+<summary>Expand <code>episode_package.schema.json</code></summary>
 
 ```json
 {
@@ -1739,6 +1773,8 @@ flowchart LR
   }
 }
 ```
+
+</details>
 
 **Minimal valid `episode_package.json` example**
 
